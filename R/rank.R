@@ -25,11 +25,13 @@ plot_rank_correlation <- function(correlation_file) {
 qvalue_at_threshold <- function(marginal_file, ranks_file) {
     marginal <- read.delim(gzfile(marginal_file), header=FALSE)
     ranks <- read.table(ranks_file, sep=' ')
-    (marginal %>%
-     group_by(V1) %>%
-     mutate(p = 10 ** -V3) %>%
-     mutate(q = qvalue::qvalue(p)$qvalues) %>%
-     select(V1, q) %>%
-     arrange(q) %>%
-     slice(ranks[ranks$V1 == V1[1],]$V3))
+    qvalues <- (marginal %>%
+                group_by(V1) %>%
+                mutate(p = 10 ** -V3) %>%
+                mutate(q = qvalue::qvalue(p)$qvalues) %>%
+                select(V1, p, q) %>%
+                arrange(q) %>%
+                slice(ranks[ranks$V1 == V1[1],]$V3))
+    write.table(qvalues, file=sub('.ranks', '.qvalues', ranks_file),
+                quote=FALSE, row.names=FALSE, col.names=FALSE)
 }
