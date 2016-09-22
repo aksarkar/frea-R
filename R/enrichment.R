@@ -7,9 +7,9 @@ requireNamespace('gtable')
 #' @importFrom grid unit
 NULL
 
-enrichment_by_cluster <- function(enrichments, cluster_density) {
+enrichment_by_cluster <- function(enrichments, cluster_density, scale_name) {
     (heatmap(ggplot(enrichments, aes(x=cluster, y=pheno, fill=score))) +
-     scale_heatmap(name='Log-fold enrichment') +
+     scale_heatmap(name=scale_name) +
      labs(x='Enhancer module', y='Phenotype') +
      theme_nature +
      theme(axis.title.x=element_blank(),
@@ -54,20 +54,26 @@ plot_enhancer_enrichments_by_eid <- function(filename) {
     dev.off()
 }
 
-plot_enhancer_enrichments <- function(filename, cluster_density, plot_log_fold=FALSE, flip=FALSE) {
+plot_enhancer_enrichments <- function(filename, cluster_density, plot_log_fold=FALSE, plot_fold=FALSE, flip=FALSE) {
     enrichments <- parse_enhancer_enrichments(filename)
     enrichments$cluster <- factor(enrichments$V3, levels=row.names(cluster_density))
-    if (plot_log_fold) {
+    if (plot_fold) {
+        enrichments <- transform(enrichments, score=V5 / V6)
+        label <- 'Fold enrichment'
+    }
+    else if (plot_log_fold) {
         enrichments <- transform(enrichments, score=log10(V5) - log10(V6))
+        label <- 'Log fold enrichment'
     }
     else {
         enrichments <- transform(enrichments, score=(V5 - V6) / sqrt(V7))
+        label <- 'z-score'
     }
 
     my_density <- (density_by_cluster(cluster_density, keep=unique(enrichments$cluster)) +
                    theme(legend.position='right',
                          axis.text.y=element_text(margin=margin(2))))
-    my_gtable <- gtable:::rbind.gtable(ggplotGrob(enrichment_by_cluster(enrichments, cluster_density)),
+    my_gtable <- gtable:::rbind.gtable(ggplotGrob(enrichment_by_cluster(enrichments, cluster_density, label)),
                                        ggplotGrob(my_density),
                                        size='last')
 
