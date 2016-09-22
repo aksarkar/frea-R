@@ -3,7 +3,7 @@ requireNamespace('grid')
 
 #' @importFrom grid unit
 
-theme_nature <- theme(
+theme_nature <- ggplot2::theme(
     line=element_line(color='black', size=(0.5 / ggplot2:::.pt), linetype=1,
                       lineend='square'),
     rect=element_blank(),
