@@ -1,4 +1,5 @@
 requireNamespace('Cairo')
+requireNamespace('dplyr')
 requireNamespace('ggplot2')
 requireNamespace('grid')
 requireNamespace('gtable')
@@ -110,5 +111,73 @@ plot_diagnostic <- function(filename, cluster_density) {
                 panel.grid.major=element_line(size=0.1, color='gray80')))
     Cairo(type='pdf', file=sub('.in$', '-diagnostic.pdf', filename), width=190, height=270, units='mm')
     print(p)
+}
+
+plot_enrichment_and_pve <- function(enrichment_file, pve_file, cluster_density) {
+    pve <- (read.table(pve_file, sep=' ') %>%
+            dplyr::mutate(cluster=factor(V1, levels=row.names(cluster_density))) %>%
+            dplyr::select(cluster, pve=V3, se=V4) %>%
+            dplyr::filter(cluster %in% enrichments$cluster))
+    pve_plot <- (ggplot(pve, aes(x=cluster, y=pve, ymin = pve - se, ymax = pve + se, color=cluster)) +
+                 geom_point(size=.25) +
+                 geom_linerange(size=.25) +
+                 scale_color_manual(values=color_by_cluster_top(cluster_density)) +
+                 labs(y='T1D PVE') +
+                 theme_nature +
+                 theme(axis.text.x=element_blank(),
+                       axis.title.x=element_blank(),
+                       plot.margin=unit(c(2, 0, 0, 0), 'mm')))
+
+    enrichments <- (parse_enhancer_enrichments(enrichment_file) %>%
+                    dplyr::mutate(cluster=factor(V3, levels=row.names(cluster_density)),
+                                  sig=V8 < 0.002) %>%
+                    dplyr::group_by(cluster) %>%
+                    dplyr::filter(cluster %in% pve$cluster & TRUE %in% sig & pheno == "T1D") %>%
+                    dplyr::select(pheno, cluster, obs=V5, null_mean=V6, null_var=V7, sig))
+    diagnostic_plot <- (ggplot(enrichments, aes(x=factor(cluster), y=obs,
+                                                ymin=null_mean - sqrt(null_var),
+                                                ymax=null_mean + sqrt(null_var), color=cluster,
+                                                alpha=sig, shape=sig)) +
+                        geom_point(size=0.25) +
+                        geom_linerange(size=0.25) +
+                        scale_x_discrete(drop=FALSE) +
+                        scale_alpha_manual(values=c('TRUE'=1, 'FALSE'=0.25)) +
+                        scale_shape_manual(values=c('TRUE'=19, 'FALSE'=1)) +
+                        scale_color_manual(values=color_by_cluster_top(cluster_density)) +
+                        labs(y='T1D overlaps') +
+                        theme_nature +
+                        theme(axis.text.x=element_blank(),
+                              axis.title.x=element_blank()))
+
+
+    my_density <- (density_by_cluster(cluster_density, keep=unique(enrichments$cluster)) +
+                   theme(legend.position='right',
+                         axis.text.y=element_text(margin=margin(2))))
+    my_gtable <- gtable:::rbind.gtable(gtable::gtable_add_cols(ggplotGrob(pve_plot), unit(1, "lines")),
+                                       gtable::gtable_add_cols(ggplotGrob(diagnostic_plot), unit(1, "lines")),
+                                       ggplotGrob(my_density),
+                                       size='last')
+
+    # Fix up the widths/heights since these get clobbered by bind
+    my_gtable$widths <- grid:::unit.list(my_gtable$widths)
+    my_gtable$heights <- grid:::unit.list(my_gtable$heights)
+    widths <- list(unit(length(unique(pve$cluster)), 'null'))
+    heights <- lapply(list(6, 6, 30), function(x) unit(x, 'null'))
+    my_gtable$widths[my_gtable$layout$l[grepl("panel", my_gtable$layout$name)]] <- widths
+    my_gtable$heights[my_gtable$layout$t[grepl("panel", my_gtable$layout$name)]] <- heights
+
+    ## Add tissue colors
+    cluster_by_tissue_grob <- ggplotGrob(cluster_by_tissue(cluster_density, keep=unique(enrichments$cluster)))
+    my_gtable <- gtable::gtable_add_rows(my_gtable, unit(4, 'mm'), 7)
+    my_gtable <- gtable::gtable_add_rows(my_gtable, unit(7, 'mm'), 13)
+    my_gtable <- gtable::gtable_add_grob(my_gtable, cluster_by_tissue_grob, t=14, l=4)
+
+    ## Add tissue legend
+    my_gtable <- gtable::gtable_add_rows(my_gtable, unit(20, 'mm'))
+    my_legend <- roadmap_tissue_legend(list(legend.position='bottom'), list(direction='horizontal', nrow=4))
+    my_gtable <- gtable::gtable_add_grob(my_gtable, my_legend, t=-1, l=1, r=-1)
+
+    Cairo(type='pdf', file=sub('.in$', '-pve.pdf', sig_enrichment_file), width=100, height=120, units='mm')
+    grid::grid.draw(my_gtable)
     dev.off()
 }
