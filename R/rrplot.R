@@ -27,6 +27,7 @@ rrplot_highlights <- function() {
          'AD' = b_cell,
          'BIP' = psych,
          'SCZ' = psych,
+         'SCZ-HOLDOUT-IMPG' = psych,
          'CAD' = 'E075',
          'T2D' = c('E087', 'E109'))
 }
@@ -62,21 +63,23 @@ rrplot <- function(X, total_cutoff, axis_labels, rank_cutoff, highlight=FALSE) {
            plot.margin=unit(c(0, 7, 2, 0), 'mm')))
 }
 
-plot_rrplot <- function(counts_file, xlab, cutoff) {
+plot_rrplot <- function(counts_file, xlab, cutoff, use_phenotype_ordering=TRUE, ...) {
     X <- read.csv(gzfile(counts_file), header=FALSE)
     colnames(X) <- c('total', 'phenotype', 'eid', 'feature', 'count', 'expected')
     cumulative_deviation <- ddply(X, .(phenotype, feature, eid), transform,
                                   study=phenotype,
-                                  phenotype=toupper(sub("^.*-", "", phenotype)),
+                                  phenotype=toupper(sub("^[^-]*-", "", phenotype)),
                                   y=(count - expected) / max(count))
-    cumulative_deviation$phenotype <- factor(cumulative_deviation$phenotype, levels=phenotype_ordering)
+    if (use_phenotype_ordering) {
+        cumulative_deviation$phenotype <- factor(cumulative_deviation$phenotype, levels=phenotype_ordering)
+    }
     rank_cutoff <- rrplot_elbow(cumulative_deviation)
     write.table(x=rank_cutoff, file=sub('.txt.gz$', '.ranks', counts_file),
                 quote=FALSE, row.names=FALSE, col.names=FALSE)
 
     my_gtable <- ggplotGrob(rrplot(cumulative_deviation, cutoff,
                                    labs(x=xlab, y='Cumulative deviation'),
-                                   rank_cutoff))
+                                   rank_cutoff, ...))
 
     ## Add the legend
     my_gtable <- gtable::gtable_add_rows(my_gtable, unit(1, 'lines'))

@@ -20,6 +20,7 @@ Collate:
     'scales.R'
     'heatmap.R'
     'enrichment.R'
+    'impg.R'
     'motifs.R'
     'qqplot.R'
     'rank.R'
