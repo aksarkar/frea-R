@@ -26,7 +26,7 @@ parse_impg_corr <- function(ind_file, impg_file, nrow=10e6) {
                                    col.names=c('snp', 'pos', 'ref', 'alt', 'z', 'r2'),
                                    nrow=nrow, comment.char='')
     impg_corr <- (impg_imputed %>% dplyr::filter(r2 > 0.6) %>%
-                  dplyr::inner_join(ind_imputed, by=c('snp', 'pos', 'ref', 'alt')))
+                  dplyr::inner_join(ind_imputed, by=c('snp', 'pos')))
     return(impg_corr)
 }
 
@@ -38,6 +38,23 @@ plot_impg_corr <- function(impg_corr) {
                 scale_heatmap(name='Log count') +
                 theme_nature)
     Cairo(file='impg-holdout-corr.pdf', type='pdf', height=89, width=89, units='mm')
+    print(my_plot)
+    dev.off()
+}
+
+plot_impg_deflation <- function(impg_corr, subsample=1000) {
+    my_plot <- (holdout_corr %>%
+                dplyr::mutate(ratio=z.y / z.x) %>%
+                dplyr::filter(abs(ratio) > 1e-4) %>%
+                dplyr::arrange(abs(ratio)) %>%
+                dplyr::mutate(i=rep(1), n=cumsum(i)) %>%
+                dplyr::filter(n %% subsample == 0) %>%
+                ggplot(aes(y=n/max(n), x=abs(ratio))) +
+                geom_line() +
+                labs(y='Cumulative number of SNPs',
+                     x='Maximum ratio true/imputed z-scores') +
+                theme_nature)
+    Cairo(file='impg-holdout-deflation.pdf', type='pdf', height=89, width=89, units='mm')
     print(my_plot)
     dev.off()
 }
